@@ -1,8 +1,10 @@
 package com.wafflestudio.account
 
+import android.content.ContentValues.TAG
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -21,39 +23,36 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         webView = findViewById(R.id.webview)
 
-
         webView.apply {
             webViewClient = object : WebViewClient() {
-                override fun shouldOverrideUrlLoading(view: WebView, webResourceRequest: WebResourceRequest): Boolean {
-                    if (webResourceRequest.url != null && webResourceRequest.url.toString().startsWith("intent://")) {
-                        try {
-                            val intent = Intent.parseUri(webResourceRequest.url.toString(), Intent.URI_INTENT_SCHEME)
-                            val existPackage =
-                                packageManager.getLaunchIntentForPackage(intent.getPackage()!!)
-                            if (existPackage != null) {
-                                startActivity(intent)
-                            } else {
-                                val marketIntent = Intent(Intent.ACTION_VIEW)
-                                marketIntent.data =
-                                    Uri.parse("market://details?id=" + intent.getPackage()!!)
-                                startActivity(marketIntent)
-                            }
-                            return true
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
+                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
 
-                    } else if (webResourceRequest.url != null && webResourceRequest.url.toString().startsWith("market://")) {
+                    if (request.url.scheme == "intent") {
                         try {
-                            val intent = Intent.parseUri(webResourceRequest.url.toString(), Intent.URI_INTENT_SCHEME)
-                            if (intent != null) {
+                            // Intent 생성
+                            val intent =
+                                Intent.parseUri(request.url.toString(), Intent.URI_INTENT_SCHEME)
+
+                            // 실행 가능한 앱이 있으면 앱 실행
+                            if (intent.resolveActivity(packageManager) != null) {
                                 startActivity(intent)
+                                Log.d(TAG, "ACTIVITY: ${intent.`package`}")
+                                return true
                             }
-                            return true
+
+                            // Fallback URL이 있으면 현재 웹뷰에 로딩
+                            val fallbackUrl = intent.getStringExtra("browser_fallback_url")
+                            if (fallbackUrl != null) {
+                                view.loadUrl(fallbackUrl)
+                                Log.d(TAG, "FALLBACK: $fallbackUrl")
+                                return true
+                            }
+
+                            Log.e(TAG, "Could not parse anythings")
+
                         } catch (e: URISyntaxException) {
-                            e.printStackTrace()
+                            Log.e(TAG, "Invalid intent request", e)
                         }
-
                     }
                     return false
                 }
@@ -68,6 +67,7 @@ class MainActivity : AppCompatActivity() {
                 builtInZoomControls = false
                 javaScriptEnabled = true
                 javaScriptCanOpenWindowsAutomatically = true
+                // 구글한테 구라치기
                 userAgentString = USER_AGENT
 
                 setSupportMultipleWindows(true)
